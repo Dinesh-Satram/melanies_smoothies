@@ -27,9 +27,6 @@ fruit_df = (
 
 pd_df = fruit_df.to_pandas()
 
-# (Optional) show available fruits
-# st.dataframe(pd_df)
-
 # ---------------- MULTISELECT ----------------
 ingredients_list = st.multiselect(
     "Choose upto 5 ingredients:",
@@ -39,8 +36,8 @@ ingredients_list = st.multiselect(
 
 # ---------------- MAIN LOGIC ----------------
 if ingredients_list:
-    # Build one string for inserting into ORDERS
-    ingredients_string = " ".join(ingredients_list)
+    # 1️⃣ Build one clean string for inserting into ORDERS (no trailing spaces)
+    ingredients_string = " ".join(f.strip() for f in ingredients_list)
 
     # For each chosen fruit, look up SEARCH_ON and call API
     for fruit_chosen in ingredients_list:
@@ -53,14 +50,27 @@ if ingredients_list:
 
         st.subheader(f"{fruit_chosen} Nutrition Information")
 
-        # Call SmoothieFroot API with the search term
+        # 2️⃣ Call SmoothieFroot API with basic error-handling
         url = f"https://my.smoothiefroot.com/api/fruit/{search_on}"
-        smoothiefroot_response = requests.get(url)
-        smoothiefroot_response.raise_for_status()
 
-        # Show the JSON response as a table
-        api_df = pd.json_normalize(smoothiefroot_response.json())
-        st.dataframe(api_df, use_container_width=True)
+        try:
+            smoothiefroot_response = requests.get(url, timeout=10)
+
+            if smoothiefroot_response.status_code == 404:
+                st.warning(
+                    f"No nutrition data found in SmoothieFroot for '{search_on}'."
+                )
+                continue  # skip to next fruit
+
+            smoothiefroot_response.raise_for_status()
+
+            # Show the JSON response as a table
+            api_df = pd.json_normalize(smoothiefroot_response.json())
+            st.dataframe(api_df, use_container_width=True)
+
+        except requests.RequestException as e:
+            st.error(f"Error calling SmoothieFroot for '{search_on}': {e}")
+            continue  # don’t break the whole app
 
     st.write(ingredients_string)
 
@@ -77,6 +87,3 @@ if ingredients_list:
         st.success("Your Smoothie is ordered! " + name_on_order, icon="✅")
 
     st.write(my_insert_stmt)
-
-
-
